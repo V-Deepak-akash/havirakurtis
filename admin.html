@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+
+body{
+font-family:Arial;
+text-align:center;
+}
+
+#map{
+height:500px;
+width:90%;
+margin:auto;
+}
+
+.info{
+margin-top:10px;
+font-size:18px;
+}
+
+button{
+padding:10px 20px;
+margin-top:10px;
+font-size:16px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>Coach Dashboard</h2>
+
+<div id="map"></div>
+
+<div class="info">
+Latitude: <span id="lat">0</span> |
+Longitude: <span id="lon">0</span>
+</div>
+
+<div class="info">
+Distance: <span id="distance">0</span> km
+</div>
+
+<div class="info">
+Speed: <span id="speed">0</span> m/s
+</div>
+
+<button onclick="replayRun()">Replay Run</button>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+// create map
+let map=L.map('map').setView([0,0],15)
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19
+}).addTo(map)
+
+let route=[]
+let distanceTotal=0
+
+// big marker icon
+const runnerIcon = L.divIcon({
+className:'runner-marker',
+html:'<div style="width:18px;height:18px;background:red;border-radius:50%;border:3px solid white;"></div>',
+iconSize:[18,18]
+})
+
+let marker=L.marker([0,0],{icon:runnerIcon}).addTo(map)
+
+let line=L.polyline(route,{
+color:'red',
+weight:6
+}).addTo(map)
+
+// distance formula
+function calcDistance(lat1,lon1,lat2,lon2){
+
+const R=6371
+
+const dLat=(lat2-lat1)*Math.PI/180
+const dLon=(lon2-lon1)*Math.PI/180
+
+const a=
+Math.sin(dLat/2)*Math.sin(dLat/2)+
+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+Math.sin(dLon/2)*Math.sin(dLon/2)
+
+const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
+
+return R*c
+
+}
+
+// fetch live runner data
+setInterval(async()=>{
+
+const res=await fetch("/live")
+
+const data=await res.json()
+
+if(data.length===0) return
+
+const last=data[data.length-1]
+
+const lat=last.lat
+const lon=last.lon
+
+const point=[lat,lon]
+
+// update marker
+marker.setLatLng(point)
+
+map.setView(point)
+
+// update coordinates display
+document.getElementById("lat").innerText=lat.toFixed(6)
+document.getElementById("lon").innerText=lon.toFixed(6)
+
+// calculate distance
+if(route.length>0){
+
+const prev=route[route.length-1]
+
+distanceTotal+=calcDistance(prev[0],prev[1],lat,lon)
+
+document.getElementById("distance").innerText=distanceTotal.toFixed(2)
+
+}
+
+route.push(point)
+
+line.setLatLngs(route)
+
+// speed display
+document.getElementById("speed").innerText=last.speed||0
+
+},2000)
+
+
+// replay function
+function replayRun(){
+
+if(route.length===0) return
+
+let i=0
+
+line.setLatLngs([])
+
+marker.setLatLng(route[0])
+
+let replayLine=[]
+
+const interval=setInterval(()=>{
+
+if(i>=route.length){
+
+clearInterval(interval)
+return
+
+}
+
+replayLine.push(route[i])
+
+line.setLatLngs(replayLine)
+
+marker.setLatLng(route[i])
+
+map.setView(route[i])
+
+i++
+
+},300)
+
+}
+
+</script>
+
+</body>
+
+</html>
